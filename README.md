@@ -1,2 +1,8 @@
-# stonk
-Python CLI tool to query stock prices over a duration using Yahoo's Finance API
+## Requires
+  Python
+## Running
+```bash
+cd <Directory>
+python stonk.py <Stock Symbol> <Duration>
+# python stonk.py SAVE 1mo
+```
