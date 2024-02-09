@@ -2,8 +2,8 @@
   Python
 ## Running
 ```bash
-cd <Directory>
-python stonk.py <Stock Symbol> <Duration>
+cd <directory>
+python stonk.py <symbol> <duration>
 # python stonk.py SAVE 1mo
 ```
 ## Output
