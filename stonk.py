@@ -1,4 +1,4 @@
-import argparse, json, sys, http.client
+import argparse, gc, json, re, sys, http.client
 from datetime import datetime, timezone, timedelta
 
 def fetch_stock_data(symbol, duration):
@@ -21,6 +21,7 @@ def plot_stock_prices(stock_data, duration, currency_symbol):
     buffer = 2
     max_content_length = 13
     max_column_length = max_content_length + buffer
+    max_number_digits = max_content_length - len(currency_symbol) - 3
 
     color_reset = '\033[0m'
     color_length = len(color_reset)
@@ -63,20 +64,39 @@ def plot_stock_prices(stock_data, duration, currency_symbol):
     prev_close = None
     prev_volume = None
 
+    def replace_leading_zeros(value_str):
+        return re.sub(r'(^.*?)(\b0+)(?=\s*\d*\.)', lambda x: x.group(1) + ' ' * len(x.group(2)), value_str)
+
+    def format_large_number(number):
+        if number >= 10**9:
+            return f"  {number / 10**9:0{max_number_digits + 1}.2f}B"
+        elif number >= 10**6:
+            return f"  {number / 10**6:0{max_number_digits + 1}.2f}M"
+        elif number >= 10**3:
+            return f"  {number / 10**3:0{max_number_digits + 1}.2f}K"
+        else:
+            return f"  {number:.2f}"
+
     for i, (date, open_price, high, low, close, volume) in enumerate(data_rows):
         date_str = date.strftime('%Y-%m-%d')
-        open_str = f"  {currency_symbol} {open_price:.2f}"
-        high_str = f"  {currency_symbol} {high:.2f}"
-        low_str = f"  {currency_symbol} {low:.2f}"
-        close_str = f"  {currency_symbol} {close:.2f}" if not is_market_open(date) else "    Open"
-        volume_str = f"  {volume}"
+        open_str = f"  {currency_symbol} {open_price:0{max_number_digits}.2f}"
+        high_str = f"  {currency_symbol} {high:0{max_number_digits}.2f}"
+        low_str = f"  {currency_symbol} {low:0{max_number_digits}.2f}"
+        close_str = f"  {currency_symbol} {close:0{max_number_digits}.2f}" if not is_market_open(date) else f"{' ' * (max_content_length - 4)}Open"
+        volume_str = format_large_number(volume)
+        
+        open_str = replace_leading_zeros(open_str)
+        high_str = replace_leading_zeros(high_str)
+        low_str = replace_leading_zeros(low_str)
+        close_str = replace_leading_zeros(close_str)
+        volume_str = replace_leading_zeros(volume_str)
 
         if prev_close is not None:
             prev_open, prev_high, prev_low, prev_close, prev_volume = data_rows[i - 1][1:6]
             open_color = get_color(open_price, prev_open)
             high_color = get_color(high, prev_high)
             low_color = get_color(low, prev_low)
-            close_color = '\033[33m' if is_market_open(date) else get_color(close, prev_close)
+            close_color = '\033[33m? ' if is_market_open(date) else get_color(close, prev_close)
             volume_color = get_color(volume, prev_volume)
 
             open_str = adjust_width(f"{open_color}{open_str[2:]}{color_reset}", max_column_length)
@@ -114,6 +134,7 @@ def main():
         currency_symbol = currency_symbols[stock_data["meta"]["currency"]]
         print(f'Stock Symbol: {args.symbol.upper()} | Current Price: {currency_symbol} {stock_data["meta"]["regularMarketPrice"]:.2f}')
         plot_stock_prices(stock_data, args.duration, currency_symbol)
+        gc.collect()
     except Exception as error:
         print(f'Error: {error}')
         sys.exit(1)
