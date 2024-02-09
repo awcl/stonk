@@ -1,4 +1,4 @@
-import argparse, gc, json, re, sys, http.client
+import argparse, gc, http.client, json, re, sys
 from datetime import datetime, timezone, timedelta
 
 def fetch_stock_data(symbol, duration):
@@ -27,12 +27,12 @@ def plot_stock_prices(stock_data, duration, currency_symbol):
     color_length = len(color_reset)
 
     def get_color(current, previous):
-        if current < previous:
-            return f"\033[91m↓ "
-        elif current > previous:
-            return f"\033[92m↑ "
-        elif current == previous:
-            return f"\033[93m- "
+        arrow_colors = {
+            current > previous: "\033[92m↑ ",
+            current < previous: "\033[91m↓ ",
+            current == previous: "\033[93m- "
+        }
+        return arrow_colors[True]
 
     def adjust_width(cell, width):
         whitespace = ' ' * (width - len(cell) + cell.count('\033[') * color_length - 1)
@@ -45,6 +45,19 @@ def plot_stock_prices(stock_data, duration, currency_symbol):
         market_close_time = est_time.replace(hour=16, minute=0, second=0, microsecond=0)
 
         return market_open_time <= est_time <= market_close_time and est_time.weekday() < 5 and date.date() == est_time.date()
+
+    def replace_leading_zeros(value_str):
+        return re.sub(r'(^.*?)(\b0+)(?=\s*\d*\.)', lambda x: x.group(1) + ' ' * len(x.group(2)), value_str)
+
+    def format_large_number(number):
+        suffixes = {10**9: "B", 10**6: "M", 10**3: "K"}
+
+        for threshold, suffix in suffixes.items():
+            if number >= threshold:
+                formatted_number = number / threshold
+                return f"  {formatted_number:0{max_number_digits + 1}.2f}{suffix}"
+
+        return f"  {number:.2f}"
 
     if 'timestamp' not in stock_data or 'indicators' not in stock_data or 'quote' not in stock_data['indicators'] or not stock_data['indicators']['quote']:
         print("Error: No stock data available.")
@@ -63,19 +76,6 @@ def plot_stock_prices(stock_data, duration, currency_symbol):
     data_to_print = []
     prev_close = None
     prev_volume = None
-
-    def replace_leading_zeros(value_str):
-        return re.sub(r'(^.*?)(\b0+)(?=\s*\d*\.)', lambda x: x.group(1) + ' ' * len(x.group(2)), value_str)
-
-    def format_large_number(number):
-        if number >= 10**9:
-            return f"  {number / 10**9:0{max_number_digits + 1}.2f}B"
-        elif number >= 10**6:
-            return f"  {number / 10**6:0{max_number_digits + 1}.2f}M"
-        elif number >= 10**3:
-            return f"  {number / 10**3:0{max_number_digits + 1}.2f}K"
-        else:
-            return f"  {number:.2f}"
 
     for i, (date, open_price, high, low, close, volume) in enumerate(data_rows):
         date_str = date.strftime('%Y-%m-%d')
